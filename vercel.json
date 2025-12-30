@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/*.go",
+      "use": "@vercel/go"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/feishu2md4web"
+    }
+  ],
+  "env": {
+    "FEISHU_APP_ID": "@feishu_app_id",
+    "FEISHU_APP_SECRET": "@feishu_app_secret",
+    "GIN_MODE": "release"
+  }
+}
