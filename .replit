@@ -1,0 +1,3 @@
+[[run]]
+name = "Build and Start Web Server"
+command = "go build -o feishu2md4web ./web/*.go && ./feishu2md4web"
