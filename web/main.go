@@ -26,9 +26,19 @@ func main() {
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.templ.html", nil)
 	})
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+		})
+	})
 	router.GET("/download", downloadHandler)
 
-	if err := router.Run(); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := router.Run("0.0.0.0:" + port); err != nil {
 		log.Panicf("error: %s", err)
 	}
 }
