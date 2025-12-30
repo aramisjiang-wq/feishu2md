@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: feishu2md
+    env: docker
+    plan: free
+    envVars:
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: GIN_MODE
+        value: release
+      - key: PORT
+        value: 8080
