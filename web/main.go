@@ -19,9 +19,17 @@ func main() {
 		utils.LoadEnv()
 	}
 
-	router := gin.New()
+	router := gin.Default() // 使用默认中间件
 	templ := template.Must(template.New("").ParseFS(f, "templ/*.templ.html"))
 	router.SetHTMLTemplate(templ)
+
+	// 添加测试路由
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "测试路由正常工作",
+			"status": "ok",
+		})
+	})
 
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.templ.html", nil)
@@ -35,7 +43,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8081"
 	}
 
 	if err := router.Run("0.0.0.0:" + port); err != nil {

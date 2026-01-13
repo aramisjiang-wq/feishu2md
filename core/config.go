@@ -22,6 +22,7 @@ type OutputConfig struct {
 	TitleAsFilename bool   `json:"title_as_filename"`
 	UseHTMLTags     bool   `json:"use_html_tags"`
 	SkipImgDownload bool   `json:"skip_img_download"`
+	EmbedImages     bool   `json:"embed_images"`
 }
 
 func NewConfig(appId, appSecret string) *Config {

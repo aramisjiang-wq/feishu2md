@@ -25,6 +25,8 @@ func downloadHandler(c *gin.Context) {
 		return
 	}
 
+	embedImages := c.Query("embed") == "true"
+
 	// Validate the url to download
 	docType, docToken, err := utils.ValidateDocumentURL(feishu_docx_url)
 	fmt.Println("Captured document token:", docToken)
@@ -67,6 +69,29 @@ func downloadHandler(c *gin.Context) {
 	}
 	markdown = parser.ParseDocxContent(docx, blocks)
 
+	if embedImages {
+		for _, imgToken := range parser.ImgTokens {
+			base64Link, err := client.DownloadImageBase64(ctx, imgToken)
+			if err != nil {
+				c.String(http.StatusInternalServerError, "Internal error: client.DownloadImageBase64")
+				log.Panicf("error: %s", err)
+				return
+			}
+			markdown = strings.Replace(markdown, imgToken, base64Link, 1)
+		}
+	}
+
+	engine := lute.New(func(l *lute.Lute) {
+		l.RenderOptions.AutoSpace = true
+	})
+	result := engine.FormatStr("md", markdown)
+
+	if embedImages {
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.md"`, docToken))
+		c.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(result))
+		return
+	}
+
 	zipBuffer := new(bytes.Buffer)
 	writer := zip.NewWriter(zipBuffer)
 	for _, imgToken := range parser.ImgTokens {
@@ -91,37 +116,26 @@ func downloadHandler(c *gin.Context) {
 		}
 	}
 
-	engine := lute.New(func(l *lute.Lute) {
-		l.RenderOptions.AutoSpace = true
-	})
-	result := engine.FormatStr("md", markdown)
-
-	// Set response
-	if len(parser.ImgTokens) > 0 {
-		mdName := fmt.Sprintf("%s.md", docToken)
-		f, err := writer.Create(mdName)
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Internal error: zipWriter.Create")
-			log.Panicf("error: %s", err)
-			return
-		}
-		_, err = f.Write([]byte(result))
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Internal error: zipWriter.Create.Write")
-			log.Panicf("error: %s", err)
-			return
-		}
-
-		err = writer.Close()
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Internal error: zipWriter.Close")
-			log.Panicf("error: %s", err)
-			return
-		}
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, docToken))
-		c.Data(http.StatusOK, "application/octet-stream", zipBuffer.Bytes())
-	} else {
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.md"`, docToken))
-		c.Data(http.StatusOK, "application/octet-stream", []byte(result))
+	mdName := fmt.Sprintf("%s.md", docToken)
+	f, err := writer.Create(mdName)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Internal error: zipWriter.Create")
+		log.Panicf("error: %s", err)
+		return
 	}
+	_, err = f.Write([]byte(result))
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Internal error: zipWriter.Create.Write")
+		log.Panicf("error: %s", err)
+		return
+	}
+
+	err = writer.Close()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Internal error: zipWriter.Close")
+		log.Panicf("error: %s", err)
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, docToken))
+	c.Data(http.StatusOK, "application/octet-stream", zipBuffer.Bytes())
 }

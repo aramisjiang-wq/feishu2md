@@ -127,7 +127,6 @@ func (p *Parser) ParseDocxContent(doc *lark.DocxDocument, blocks []*lark.DocxBlo
 
 func (p *Parser) ParseDocxBlock(b *lark.DocxBlock, indentLevel int) string {
 	buf := new(strings.Builder)
-	buf.WriteString(strings.Repeat("\t", indentLevel))
 	switch b.BlockType {
 	case lark.DocxBlockTypePage:
 		buf.WriteString(p.ParseDocxBlockPage(b))
@@ -163,7 +162,8 @@ func (p *Parser) ParseDocxBlock(b *lark.DocxBlock, indentLevel int) string {
 		buf.WriteString("\n```\n")
 	case lark.DocxBlockTypeQuote:
 		buf.WriteString("> ")
-		buf.WriteString(p.ParseDocxBlockText(b.Quote))
+		buf.WriteString(strings.TrimSpace(p.ParseDocxBlockText(b.Quote)))
+		buf.WriteString("\n")
 	case lark.DocxBlockTypeEquation:
 		buf.WriteString("$$\n")
 		buf.WriteString(p.ParseDocxBlockText(b.Equation))
@@ -222,11 +222,17 @@ func (p *Parser) ParseDocxBlockText(b *lark.DocxBlockText) string {
 func (p *Parser) ParseDocxBlockCallout(b *lark.DocxBlock) string {
 	buf := new(strings.Builder)
 
-	buf.WriteString(">[!TIP] \n")
+	buf.WriteString("> **提示：**\n")
 
 	for _, childId := range b.Children {
 		childBlock := p.blockMap[childId]
-		buf.WriteString(p.ParseDocxBlock(childBlock, 0))
+		content := p.ParseDocxBlock(childBlock, 0)
+		lines := strings.Split(content, "\n")
+		for _, line := range lines {
+			if line != "" {
+				buf.WriteString("> " + line + "\n")
+			}
+		}
 	}
 
 	return buf.String()
@@ -316,7 +322,7 @@ func (p *Parser) ParseDocxBlockHeading(b *lark.DocxBlock, headingLevel int) stri
 
 func (p *Parser) ParseDocxBlockImage(img *lark.DocxBlockImage) string {
 	buf := new(strings.Builder)
-	buf.WriteString(fmt.Sprintf("![](%s)", img.Token))
+	buf.WriteString(fmt.Sprintf("![图片](%s)", img.Token))
 	buf.WriteString("\n")
 	p.ImgTokens = append(p.ImgTokens, img.Token)
 	return buf.String()
@@ -331,7 +337,8 @@ func (p *Parser) ParseDocxWhatever(body *lark.DocBody) string {
 func (p *Parser) ParseDocxBlockBullet(b *lark.DocxBlock, indentLevel int) string {
 	buf := new(strings.Builder)
 
-	buf.WriteString("- ")
+	indent := strings.Repeat("  ", indentLevel)
+	buf.WriteString(indent + "- ")
 	buf.WriteString(p.ParseDocxBlockText(b.Bullet))
 
 	for _, childId := range b.Children {
@@ -361,7 +368,8 @@ func (p *Parser) ParseDocxBlockOrdered(b *lark.DocxBlock, indentLevel int) strin
 		}
 	}
 
-	buf.WriteString(fmt.Sprintf("%d. ", order))
+	indent := strings.Repeat("  ", indentLevel)
+	buf.WriteString(indent + fmt.Sprintf("%d. ", order))
 	buf.WriteString(p.ParseDocxBlockText(b.Ordered))
 
 	for _, childId := range b.Children {
@@ -401,11 +409,10 @@ func (p *Parser) ParseDocxBlockTable(t *lark.DocxBlockTable) string {
 	}
 
 	// 构建表格内容
-
 	for i, blockId := range t.Cells {
 		block := p.blockMap[blockId]
 		cellContent := p.ParseDocxBlock(block, 0)
-		cellContent = strings.ReplaceAll(cellContent, "\n", "")
+		cellContent = strings.ReplaceAll(cellContent, "\n", " ")
 		rowIndex := int64(i) / t.Property.ColumnSize
 		colIndex := int64(i) % t.Property.ColumnSize
 
@@ -420,53 +427,99 @@ func (p *Parser) ParseDocxBlockTable(t *lark.DocxBlockTable) string {
 		rows[rowIndex][colIndex] = cellContent
 	}
 
-	// 渲染为 HTML 表格
-	buf := new(strings.Builder)
-	buf.WriteString("<table>\n")
-
-	// 跟踪已经处理过的合并单元格
-	processedCells := map[string]bool{}
-
-	// 构建 HTML 表格内容
-	for rowIndex, row := range rows {
-		buf.WriteString("<tr>\n")
-		for colIndex, cellContent := range row {
-			cellKey := fmt.Sprintf("%d-%d", rowIndex, colIndex)
-
-			// 跳过已处理的单元格
-			if processedCells[cellKey] {
-				continue
-			}
-
-			mergeInfo := mergeInfoMap[int64(rowIndex)][int64(colIndex)]
-			if mergeInfo != nil {
-
-				// 合并单元格，只有当 RowSpan > 1 或 ColSpan > 1 时才添加对应属性
-				attributes := ""
-				if mergeInfo.RowSpan > 1 {
-					attributes += fmt.Sprintf(` rowspan="%d"`, mergeInfo.RowSpan)
-				}
-				if mergeInfo.ColSpan > 1 {
-					attributes += fmt.Sprintf(` colspan="%d"`, mergeInfo.ColSpan)
-				}
-				buf.WriteString(fmt.Sprintf(
-					`<td%s>%s</td>`,
-					attributes, cellContent,
-				))
-				// 标记合并范围内的所有单元格为已处理
-				for r := rowIndex; r < rowIndex+int(mergeInfo.RowSpan); r++ {
-					for c := colIndex; c < colIndex+int(mergeInfo.ColSpan); c++ {
-						processedCells[fmt.Sprintf("%d-%d", r, c)] = true
-					}
-				}
-			} else {
-				// 普通单元格
-				buf.WriteString(fmt.Sprintf("<td>%s</td>", cellContent))
+	// 检查是否有合并单元格
+	hasMergedCells := false
+	for _, rowMap := range mergeInfoMap {
+		for _, merge := range rowMap {
+			if merge != nil && (merge.RowSpan > 1 || merge.ColSpan > 1) {
+				hasMergedCells = true
+				break
 			}
 		}
-		buf.WriteString("</tr>\n")
+		if hasMergedCells {
+			break
+		}
 	}
-	buf.WriteString("</table>\n")
+
+	// 如果有合并单元格，使用HTML格式
+	if hasMergedCells {
+		buf := new(strings.Builder)
+		buf.WriteString("<table>\n")
+
+		// 跟踪已经处理过的合并单元格
+		processedCells := map[string]bool{}
+
+		// 构建 HTML 表格内容
+		for rowIndex, row := range rows {
+			buf.WriteString("<tr>\n")
+			for colIndex, cellContent := range row {
+				cellKey := fmt.Sprintf("%d-%d", rowIndex, colIndex)
+
+				// 跳过已处理的单元格
+				if processedCells[cellKey] {
+					continue
+				}
+
+				mergeInfo := mergeInfoMap[int64(rowIndex)][int64(colIndex)]
+				if mergeInfo != nil {
+
+					// 合并单元格，只有当 RowSpan > 1 或 ColSpan > 1 时才添加对应属性
+					attributes := ""
+					if mergeInfo.RowSpan > 1 {
+						attributes += fmt.Sprintf(` rowspan="%d"`, mergeInfo.RowSpan)
+					}
+					if mergeInfo.ColSpan > 1 {
+						attributes += fmt.Sprintf(` colspan="%d"`, mergeInfo.ColSpan)
+					}
+					buf.WriteString(fmt.Sprintf(
+						`<td%s>%s</td>`,
+						attributes, cellContent,
+					))
+					// 标记合并范围内的所有单元格为已处理
+					for r := rowIndex; r < rowIndex+int(mergeInfo.RowSpan); r++ {
+						for c := colIndex; c < colIndex+int(mergeInfo.ColSpan); c++ {
+							processedCells[fmt.Sprintf("%d-%d", r, c)] = true
+						}
+					}
+				} else {
+					// 普通单元格
+					buf.WriteString(fmt.Sprintf("<td>%s</td>", cellContent))
+				}
+			}
+			buf.WriteString("</tr>\n")
+		}
+		buf.WriteString("</table>\n")
+
+		return buf.String()
+	}
+
+	// 没有合并单元格，使用Markdown原生格式
+	buf := new(strings.Builder)
+
+	// 渲染表头行
+	if len(rows) > 0 {
+		buf.WriteString("|")
+		for _, cell := range rows[0] {
+			buf.WriteString(" " + cell + " |")
+		}
+		buf.WriteString("\n")
+
+		// 渲染分隔行
+		buf.WriteString("|")
+		for range rows[0] {
+			buf.WriteString(" --- |")
+		}
+		buf.WriteString("\n")
+
+		// 渲染数据行
+		for i := 1; i < len(rows); i++ {
+			buf.WriteString("|")
+			for _, cell := range rows[i] {
+				buf.WriteString(" " + cell + " |")
+			}
+			buf.WriteString("\n")
+		}
+	}
 
 	return buf.String()
 }

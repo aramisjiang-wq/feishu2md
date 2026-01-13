@@ -27,17 +27,31 @@ if ! command -v ngrok &> /dev/null; then
     exit 1
 fi
 
-echo "选择启动方式："
-echo "1) 本地运行 (http://localhost:8080)"
-echo "2) 本地运行 + ngrok (公网访问)"
-echo ""
-read -p "请输入选项 (1 或 2): " choice
+# 检查 ngrok 是否已认证（仅用于选项 2）
+check_ngrok_auth() {
+    if ngrok config check &> /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# 检查是否有参数
+if [ $# -eq 0 ]; then
+    echo "选择启动方式："
+    echo "1) 本地运行 (http://localhost:8081)"
+    echo "2) 本地运行 + ngrok (公网访问)"
+    echo ""
+    read -p "请输入选项 (1 或 2): " choice
+else
+    choice="$1"
+fi
 
 case $choice in
     1)
         echo ""
         echo "🚀 启动本地应用..."
-        echo "📱 访问地址: http://localhost:8080"
+        echo "📱 访问地址: http://localhost:8081"
         echo ""
         ./feishu2md4web
         ;;
@@ -45,6 +59,18 @@ case $choice in
         echo ""
         echo "🚀 启动本地应用 + ngrok..."
         echo ""
+        
+        # 检查ngrok认证
+        if ! check_ngrok_auth; then
+            echo "❌ ngrok 未认证，无法使用公网访问功能"
+            echo ""
+            echo "请先注册并认证 ngrok："
+            echo "1. 访问 https://dashboard.ngrok.com/signup 注册账号"
+            echo "2. 登录后在控制台获取认证令牌"
+            echo "3. 安装认证令牌：ngrok config add-authtoken YOUR_AUTH_TOKEN"
+            echo ""
+            exit 1
+        fi
         
         # 启动应用
         ./feishu2md4web &
@@ -55,7 +81,7 @@ case $choice in
         
         # 启动 ngrok
         echo "📱 ngrok 地址:"
-        ngrok http 8080
+        ngrok http 8081
         
         # 清理
         kill $APP_PID 2>/dev/null

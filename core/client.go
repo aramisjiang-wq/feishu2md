@@ -3,14 +3,19 @@ package core
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/chai2010/webp"
 	"github.com/chyroc/lark"
 	"github.com/chyroc/lark_rate_limiter"
+	"github.com/disintegration/imaging"
 )
 
 type Client struct {
@@ -64,6 +69,37 @@ func (c *Client) DownloadImageRaw(ctx context.Context, imgToken, imgDir string) 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(resp.File)
 	return filename, buf.Bytes(), nil
+}
+
+func (c *Client) DownloadImageBase64(ctx context.Context, imgToken string) (string, error) {
+	resp, _, err := c.larkClient.Drive.DownloadDriveMedia(ctx, &lark.DownloadDriveMediaReq{
+		FileToken: imgToken,
+	})
+	if err != nil {
+		return "", err
+	}
+	
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.File)
+	
+	fileext := filepath.Ext(resp.Filename)
+	mimeType := "image/png"
+	if fileext == ".jpg" || fileext == ".jpeg" {
+		mimeType = "image/jpeg"
+	} else if fileext == ".gif" {
+		mimeType = "image/gif"
+	} else if fileext == ".webp" {
+		mimeType = "image/webp"
+	} else if fileext == ".svg" {
+		mimeType = "image/svg+xml"
+	}
+	
+	processedMimeType, base64Str, err := processImageForBase64(buf.Bytes(), mimeType)
+	if err != nil {
+		return "", err
+	}
+	
+	return fmt.Sprintf("data:%s;base64,%s", processedMimeType, base64Str), nil
 }
 
 func (c *Client) GetDocxContent(ctx context.Context, docToken string) (*lark.DocxDocument, []*lark.DocxBlock, error) {
@@ -175,4 +211,59 @@ func (c *Client) GetWikiNodeList(ctx context.Context, spaceID string, parentNode
 	}
 
 	return nodes, nil
+}
+
+const (
+	maxImageWidth  = 800
+	imageQuality   = 75
+	webpQuality    = 75
+)
+
+func compressImage(img image.Image) image.Image {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	
+	if width > maxImageWidth {
+		return imaging.Resize(img, maxImageWidth, 0, imaging.Lanczos)
+	}
+	return img
+}
+
+func encodeToWebP(img image.Image) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := webp.Encode(buf, img, &webp.Options{Lossless: false, Quality: float32(webpQuality)})
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func encodeToJPEG(img image.Image) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := jpeg.Encode(buf, img, &jpeg.Options{Quality: imageQuality})
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func processImageForBase64(data []byte, mimeType string) (string, string, error) {
+	originalSize := len(data)
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	compressed := compressImage(img)
+	webpData, err := encodeToWebP(compressed)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode to WebP: %w", err)
+	}
+
+	compressedSize := len(webpData)
+	reduction := float64(originalSize-compressedSize) / float64(originalSize) * 100
+	fmt.Printf("[图片压缩] 原始: %d bytes, 压缩后: %d bytes, 减少: %.1f%%\n", originalSize, compressedSize, reduction)
+
+	base64Str := base64.StdEncoding.EncodeToString(webpData)
+	return "image/webp", base64Str, nil
 }

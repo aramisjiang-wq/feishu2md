@@ -41,39 +41,13 @@
         font-size: 32px;
         font-weight: 600;
         color: #1a1a1a;
+        letter-spacing: 1px;
       }
-      .github-section {
-        max-width: 500px;
-        margin: 0 auto 40px;
-        padding: 20px 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        font-size: 16px;
-      }
-      .icon-button {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 50%;
-        transition: background-color 0.2s;
-      }
-      .icon-button:hover {
-        background-color: #f5f5f5;
-      }
-      .icon-button .material-icons {
-        font-size: 24px;
-        color: #e91e63;
-      }
-      .github-link {
-        color: #0066cc;
-        text-decoration: none;
-        font-weight: 500;
-      }
-      .github-link:hover {
-        text-decoration: underline;
+      .header-card .subtitle {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #999999;
+        font-weight: 400;
       }
       .input-section {
         max-width: 500px;
@@ -84,6 +58,7 @@
         font-size: 16px;
         color: #666666;
         margin-bottom: 20px;
+        font-weight: 500;
       }
       .input-wrapper {
         display: flex;
@@ -100,11 +75,74 @@
         border: 2px solid #e0e0e0;
         border-radius: 8px;
         outline: none;
-        transition: border-color 0.2s;
+        transition: border-color 0.2s, box-shadow 0.2s;
         box-sizing: border-box;
+        color: #333333;
       }
       .url-input:focus {
         border-color: #0066cc;
+        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+      }
+      .url-input::placeholder {
+        color: #cccccc;
+      }
+      .options-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        width: 100%;
+        max-width: 400px;
+      }
+      .option-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .option-item:hover {
+        background-color: #f0f1f2;
+      }
+      .option-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #0066cc;
+      }
+      .option-item .label {
+        font-size: 14px;
+        color: #333333;
+        cursor: pointer;
+        flex: 1;
+      }
+      .option-item .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .badge-recommended {
+        background-color: #e3f2fd;
+        color: #0066cc;
+      }
+      .badge-new {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+      .option-item .description {
+        font-size: 12px;
+        color: #999999;
+        margin-top: 4px;
+        line-height: 1.4;
       }
       .download-button {
         padding: 12px 32px;
@@ -116,10 +154,12 @@
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        transition: background-color 0.2s, transform 0.1s;
+        transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
       }
       .download-button:hover {
         background-color: #0052a3;
+        box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
       }
       .download-button:active {
         transform: scale(0.98);
@@ -129,6 +169,28 @@
         font-size: 14px;
         color: #999999;
         display: none;
+        padding: 12px 16px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 12px;
+        margin-left: 8px;
+      }
+      .status-ready {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+      .status-processing {
+        background-color: #fff3e0;
+        color: #e65100;
       }
     </style>
   </head>
@@ -136,31 +198,35 @@
   <body>
       <main>
         <div class="header-card">
-          <h1>飞书文档转换md</h1>
-        </div>
-        
-        <div class="github-section">
-          <button class="icon-button">
-            <span class="material-icons">favorite</span>
-          </button>
-          <span>GitHub:</span>
-          <a href="https://github.com/Wsine/feishu2md" target="_blank" class="github-link">
-            Wsine/feishu2md
-          </a>
+          <h1>飞书文档转换 MD</h1>
+          <div class="subtitle">支持文档、知识库批量下载，智能图片压缩</div>
         </div>
 
         <div class="input-section">
-          <div class="input-label">Input the feishu/lark document url below:</div>
+          <div class="input-label">输入飞书文档链接：</div>
           <div class="input-wrapper">
             <input
               type="text"
               class="url-input"
               placeholder="https://domain.feishu.cn/docx/doxcnXhmd9GIPTyqoLn3zVP7AFe"
             />
-            <button class="download-button">Download</button>
+            <div class="options-wrapper">
+              <div class="option-item">
+                <input type="checkbox" id="embedImages" />
+                <div>
+                  <div class="label">
+                    嵌入图片到 Markdown
+                    <span class="badge badge-recommended">推荐</span>
+                  </div>
+                  <div class="description">图片自动压缩 + WebP 转换，可直接复制粘贴到 MD 编辑器</div>
+                </div>
+              </div>
+            </div>
+            <button class="download-button">开始转换</button>
           </div>
           <div id="hint" class="hint">
-            Please wait. It may take a while to response.
+            <span class="status-badge status-processing">处理中</span>
+            正在转换文档，请稍候...
           </div>
         </div>
       </main>
@@ -170,11 +236,13 @@
       const url = document.querySelector(".url-input");
       const button = document.querySelector(".download-button");
       const hint = document.querySelector("#hint");
+      const embedCheckbox = document.querySelector("#embedImages");
       button.addEventListener("click", () => {
         const docUrl = encodeURIComponent(url.value.trim());
+        const embedParam = embedCheckbox.checked ? "&embed=true" : "";
         console.log(docUrl);
         hint.style.display = "block";
-        window.location.href = `/download?url=${docUrl}`;
+        window.location.href = `/download?url=${docUrl}${embedParam}`;
       });
     </script>
 </html>
